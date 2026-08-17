@@ -1,0 +1,193 @@
+# Looper spec for cherry-pro-minimax-player
+#
+# An Android video player app: Kotlin + Jetpack Compose + Media3/ExoPlayer,
+# min API 29, MP4/M4V/MOV + HTTP/HLS/DASH, global 0.25x-4x speed, PiP,
+# background audio, gesture controls, perf benchmark, GitHub Actions release.
+#
+# This loop runs in the current Cherry Studio session (host = minimax-m3).
+# The "host" and "judge" are executed by the in-session LLM, not by the
+# external run-loop.py runner. RUN_IN_SESSION.md is the actual task prompt.
+#
+# Generated 2026-08-17 by Looper for the cherry-pro-minimax-player goal.
+
+version: 1
+meta:
+  name: cherry-pro-minimax-player
+  description: >
+    Build a public Android video player app with Media3/ExoPlayer + Compose,
+    push to GitHub with auto-release via Actions, verified by frame/seek
+    perf benchmarks and strict code-review gates.
+  author: minimax-m3 (Cherry Studio)
+  created: 2026-08-17
+
+goal:
+  statement: >
+    Ship cherry-pro-minimax-player — a public Android app (Kotlin + Jetpack
+    Compose + Media3/ExoPlayer 1.4+, min API 29) that plays local MP4/M4V/MOV
+    and HTTP/HLS/DASH stream URLs, with global playback speed 0.25x-4x
+    (configurable in settings, applies to every video), Picture-in-Picture,
+    background audio + MediaSession notification, and gesture controls
+    (volume, brightness, double-tap seek). Includes an in-app perf benchmark
+    that measures dropped-frame count and seek-to-keyframe latency. The source
+    is pushed to a new public GitHub repo; GitHub Actions builds a release
+    APK on every merge to main. Optimize for zero-lag playback and a small APK.
+  context_sources:
+    - file: ./inputs/goal.md
+  definition_of_done: >
+    - Public GitHub repo cherry-pro-minimax-player exists with all source.
+    - gradle assembleDebug + assembleRelease both succeed (CI-verified).
+    - Unit tests pass (settings persistence, speed clamping, gesture math).
+    - In-app benchmark screen reports frame-drop count + seek latency.
+    - Release APK is attached to a GitHub Release on every merge to main.
+    - APK size budget (e.g. < 14 MB) is enforced in CI.
+    - README.md in repo explains install + features + perf numbers.
+  verification:
+    # Programmatic gates — determinable from CI
+    - id: builds-debug
+      type: programmatic
+      check: ["bash", "./gradlew", "assembleDebug"]
+      expect: exit_zero
+      timeout_sec: 900
+    - id: builds-release
+      type: programmatic
+      check: ["bash", "./gradlew", "assembleRelease"]
+      expect: exit_zero
+      timeout_sec: 900
+    - id: unit-tests
+      type: programmatic
+      check: ["bash", "./gradlew", "test"]
+      expect: exit_zero
+      timeout_sec: 600
+    - id: apk-size-budget
+      type: programmatic
+      check: ["bash", "scripts/check-apk-size.sh"]
+      expect: exit_zero
+      timeout_sec: 60
+    - id: github-actions-workflow
+      type: programmatic
+      check: ["bash", "scripts/check-workflow.sh"]
+      expect: exit_zero
+      timeout_sec: 60
+    # Judge gates — semantic review by an adversarial sub-agent
+    - id: code-quality
+      type: judge
+      rubric: >
+        Compose UI follows Material 3 guidelines; no deprecated APIs;
+        Media3 wiring is correct (Player, MediaSession, PiP); gesture
+        handlers don't fight scroll; no allocation in hot paths; build
+        cache and ProGuard rules are sane. App survives configuration
+        changes without re-initializing ExoPlayer. Surface is
+        SurfaceView (not TextureView) for zero-copy decode where possible.
+    - id: optimization-credibility
+      type: judge
+      rubric: >
+        Optimization claims are real, not cosmetic. Pre-buffer on
+        stream URLs (LoadControl), background thread priority sane,
+        no sync on UI thread, no log calls in release, R8/ProGuard
+        enabled for release. Benchmark screen actually measures
+        frame drops and seek latency (Choreographer or VideoFrameMetadataListener),
+        not a fake counter.
+    - id: github-ready
+      type: judge
+      rubric: >
+        Repo description + topics set, .gitignore correct for Android,
+        LICENSE present, README has install + screenshots + perf numbers,
+        Actions workflow triggers on push to main + pull_request, signs
+        APK with a debug or release keystore (even if generated), uploads
+        APK as a GitHub Release asset. Branch protection guidance noted
+        in README. No secrets committed to history.
+
+host:
+  # The host is the in-session LLM (this Cherry Studio assistant).
+  # timeout_sec is unused for in-session execution but the schema requires > 0.
+  cli: in-session
+  model: minimax-m3
+  invoke: ["__in_session__"]
+  timeout_sec: 600
+
+council:
+  # The judge is an adversarial sub-agent spawned via the Agent tool.
+  - id: judge-1
+    role: judge
+    cli: in-session-agent
+    model: minimax-m3
+    invoke: ["__spawn_agent__", "general-purpose"]
+    timeout_sec: 600
+    scope: [plan, delivery]
+    local: true
+
+gates:
+  plan_gate:
+    when: after_plan
+    members: [judge-1]
+    verdict_policy: revise_until_clean
+    verdict_source: judge-1
+    criteria: [code-quality, optimization-credibility]
+    max_revisions: 3
+  delivery_gate:
+    when: after_each_delivery
+    members: [judge-1]
+    verdict_policy: revise_until_clean
+    verdict_source: judge-1
+    criteria:
+      [builds-debug, builds-release, unit-tests, apk-size-budget,
+       github-actions-workflow, code-quality, optimization-credibility,
+       github-ready]
+    max_revisions: 4
+
+loop_control:
+  max_iterations: 8
+  budget:
+    wall_clock_min: 90
+    tokens: 5000000
+  no_progress:
+    max_stalled_iterations: 2
+    signals:
+      - same blocking issue repeats
+      - delivery artifact has no material change
+      - verifier output is unchanged
+    action: stop
+  human_checkpoints: []
+  stop_conditions:
+    - all deliveries pass their gate clean
+    - max_iterations reached
+    - same blocker repeats for 2 iterations
+    - wall-clock 90 minutes exceeded
+
+execution:
+  mode: in_session
+  isolation: current_workspace
+  side_effects:
+    requires_approval: false
+    duplicate_action_check: true
+    notes: >
+      Side effects: git init + push to a new public GitHub repo, GitHub
+      Actions workflow creation, possibly `android` CLI calls for project
+      scaffold, gradle builds. Idempotent where possible (gradle is, git
+      push --force-with-lease is gated by duplicate_action_check).
+
+observability:
+  state_file: state.json
+  run_log: run-log.md
+  checkpoint_granularity: gate
+
+privacy:
+  egress:
+    - to: judge-1
+      sends: [plan, deliveries]
+      redact: [".env", ".env.*", "secrets/**", "**/*.key",
+               "**/*.keystore", "**/*.jks"]
+      consent: not_required
+      notes: >
+        Judge-1 is an in-session sub-agent — context never leaves the
+        user's machine. Redaction is a defense-in-depth habit.
+
+workspace:
+  dir: ./loop-workspace
+  layout:
+    - plan.md
+    - delivery-{n}.md
+    - review-{n}.md
+    - state.json
+    - run-log.md
+    - context.md

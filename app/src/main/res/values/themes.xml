@@ -1,0 +1,9 @@
+<resources>
+    <!-- Base theme: Material NoActionBar. Compose drives the actual look via
+         CherryPlayerTheme(); the XML theme only sets the window decor. -->
+    <style name="Theme.CherryPlayer" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowBackground">@color/cherry_background</item>
+    </style>
+</resources>

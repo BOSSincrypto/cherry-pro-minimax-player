@@ -1,0 +1,308 @@
+{
+  "$schema": "https://github.com/ksimback/looper/schema/loop.resolved.v1.json",
+  "compiled_at": "2026-08-17T11:58:53+00:00",
+  "council": [
+    {
+      "cli": "in-session-agent",
+      "id": "judge-1",
+      "invoke": [
+        "__spawn_agent__",
+        "general-purpose"
+      ],
+      "local": true,
+      "model": "minimax-m3",
+      "role": "judge",
+      "scope": [
+        "plan",
+        "delivery"
+      ],
+      "timeout_sec": 600
+    }
+  ],
+  "council_by_id": {
+    "judge-1": {
+      "cli": "in-session-agent",
+      "id": "judge-1",
+      "invoke": [
+        "__spawn_agent__",
+        "general-purpose"
+      ],
+      "local": true,
+      "model": "minimax-m3",
+      "role": "judge",
+      "scope": [
+        "plan",
+        "delivery"
+      ],
+      "timeout_sec": 600
+    }
+  },
+  "criteria_by_id": {
+    "apk-size-budget": {
+      "check": [
+        "bash",
+        "scripts/check-apk-size.sh"
+      ],
+      "expect": "exit_zero",
+      "id": "apk-size-budget",
+      "timeout_sec": 60,
+      "type": "programmatic"
+    },
+    "builds-debug": {
+      "check": [
+        "bash",
+        "./gradlew",
+        "assembleDebug"
+      ],
+      "expect": "exit_zero",
+      "id": "builds-debug",
+      "timeout_sec": 900,
+      "type": "programmatic"
+    },
+    "builds-release": {
+      "check": [
+        "bash",
+        "./gradlew",
+        "assembleRelease"
+      ],
+      "expect": "exit_zero",
+      "id": "builds-release",
+      "timeout_sec": 900,
+      "type": "programmatic"
+    },
+    "code-quality": {
+      "id": "code-quality",
+      "rubric": "Compose UI follows Material 3 guidelines; no deprecated APIs; Media3 wiring is correct (Player, MediaSession, PiP); gesture handlers don't fight scroll; no allocation in hot paths; build cache and ProGuard rules are sane. App survives configuration changes without re-initializing ExoPlayer. Surface is SurfaceView (not TextureView) for zero-copy decode where possible.\n",
+      "type": "judge"
+    },
+    "github-actions-workflow": {
+      "check": [
+        "bash",
+        "scripts/check-workflow.sh"
+      ],
+      "expect": "exit_zero",
+      "id": "github-actions-workflow",
+      "timeout_sec": 60,
+      "type": "programmatic"
+    },
+    "github-ready": {
+      "id": "github-ready",
+      "rubric": "Repo description + topics set, .gitignore correct for Android, LICENSE present, README has install + screenshots + perf numbers, Actions workflow triggers on push to main + pull_request, signs APK with a debug or release keystore (even if generated), uploads APK as a GitHub Release asset. Branch protection guidance noted in README. No secrets committed to history.\n",
+      "type": "judge"
+    },
+    "optimization-credibility": {
+      "id": "optimization-credibility",
+      "rubric": "Optimization claims are real, not cosmetic. Pre-buffer on stream URLs (LoadControl), background thread priority sane, no sync on UI thread, no log calls in release, R8/ProGuard enabled for release. Benchmark screen actually measures frame drops and seek latency (Choreographer or VideoFrameMetadataListener), not a fake counter.\n",
+      "type": "judge"
+    },
+    "unit-tests": {
+      "check": [
+        "bash",
+        "./gradlew",
+        "test"
+      ],
+      "expect": "exit_zero",
+      "id": "unit-tests",
+      "timeout_sec": 600,
+      "type": "programmatic"
+    }
+  },
+  "execution": {
+    "isolation": "current_workspace",
+    "mode": "in_session",
+    "side_effects": {
+      "duplicate_action_check": true,
+      "notes": "Side effects: git init + push to a new public GitHub repo, GitHub Actions workflow creation, possibly `android` CLI calls for project scaffold, gradle builds. Idempotent where possible (gradle is, git push --force-with-lease is gated by duplicate_action_check).\n",
+      "requires_approval": false
+    }
+  },
+  "gates": {
+    "delivery_gate": {
+      "criteria": [
+        "builds-debug",
+        "builds-release",
+        "unit-tests",
+        "apk-size-budget",
+        "github-actions-workflow",
+        "code-quality",
+        "optimization-credibility",
+        "github-ready"
+      ],
+      "max_revisions": 4,
+      "members": [
+        "judge-1"
+      ],
+      "verdict_policy": "revise_until_clean",
+      "verdict_source": "judge-1",
+      "when": "after_each_delivery"
+    },
+    "plan_gate": {
+      "criteria": [
+        "code-quality",
+        "optimization-credibility"
+      ],
+      "max_revisions": 3,
+      "members": [
+        "judge-1"
+      ],
+      "verdict_policy": "revise_until_clean",
+      "verdict_source": "judge-1",
+      "when": "after_plan"
+    }
+  },
+  "goal": {
+    "context_sources": [
+      {
+        "file": "./inputs/goal.md"
+      }
+    ],
+    "definition_of_done": "- Public GitHub repo cherry-pro-minimax-player exists with all source. - gradle assembleDebug + assembleRelease both succeed (CI-verified). - Unit tests pass (settings persistence, speed clamping, gesture math). - In-app benchmark screen reports frame-drop count + seek latency. - Release APK is attached to a GitHub Release on every merge to main. - APK size budget (e.g. < 14 MB) is enforced in CI. - README.md in repo explains install + features + perf numbers.\n",
+    "statement": "Ship cherry-pro-minimax-player \u2014 a public Android app (Kotlin + Jetpack Compose + Media3/ExoPlayer 1.4+, min API 29) that plays local MP4/M4V/MOV and HTTP/HLS/DASH stream URLs, with global playback speed 0.25x-4x (configurable in settings, applies to every video), Picture-in-Picture, background audio + MediaSession notification, and gesture controls (volume, brightness, double-tap seek). Includes an in-app perf benchmark that measures dropped-frame count and seek-to-keyframe latency. The source is pushed to a new public GitHub repo; GitHub Actions builds a release APK on every merge to main. Optimize for zero-lag playback and a small APK.\n",
+    "verification": [
+      {
+        "check": [
+          "bash",
+          "./gradlew",
+          "assembleDebug"
+        ],
+        "expect": "exit_zero",
+        "id": "builds-debug",
+        "timeout_sec": 900,
+        "type": "programmatic"
+      },
+      {
+        "check": [
+          "bash",
+          "./gradlew",
+          "assembleRelease"
+        ],
+        "expect": "exit_zero",
+        "id": "builds-release",
+        "timeout_sec": 900,
+        "type": "programmatic"
+      },
+      {
+        "check": [
+          "bash",
+          "./gradlew",
+          "test"
+        ],
+        "expect": "exit_zero",
+        "id": "unit-tests",
+        "timeout_sec": 600,
+        "type": "programmatic"
+      },
+      {
+        "check": [
+          "bash",
+          "scripts/check-apk-size.sh"
+        ],
+        "expect": "exit_zero",
+        "id": "apk-size-budget",
+        "timeout_sec": 60,
+        "type": "programmatic"
+      },
+      {
+        "check": [
+          "bash",
+          "scripts/check-workflow.sh"
+        ],
+        "expect": "exit_zero",
+        "id": "github-actions-workflow",
+        "timeout_sec": 60,
+        "type": "programmatic"
+      },
+      {
+        "id": "code-quality",
+        "rubric": "Compose UI follows Material 3 guidelines; no deprecated APIs; Media3 wiring is correct (Player, MediaSession, PiP); gesture handlers don't fight scroll; no allocation in hot paths; build cache and ProGuard rules are sane. App survives configuration changes without re-initializing ExoPlayer. Surface is SurfaceView (not TextureView) for zero-copy decode where possible.\n",
+        "type": "judge"
+      },
+      {
+        "id": "optimization-credibility",
+        "rubric": "Optimization claims are real, not cosmetic. Pre-buffer on stream URLs (LoadControl), background thread priority sane, no sync on UI thread, no log calls in release, R8/ProGuard enabled for release. Benchmark screen actually measures frame drops and seek latency (Choreographer or VideoFrameMetadataListener), not a fake counter.\n",
+        "type": "judge"
+      },
+      {
+        "id": "github-ready",
+        "rubric": "Repo description + topics set, .gitignore correct for Android, LICENSE present, README has install + screenshots + perf numbers, Actions workflow triggers on push to main + pull_request, signs APK with a debug or release keystore (even if generated), uploads APK as a GitHub Release asset. Branch protection guidance noted in README. No secrets committed to history.\n",
+        "type": "judge"
+      }
+    ]
+  },
+  "host": {
+    "cli": "in-session",
+    "invoke": [
+      "__in_session__"
+    ],
+    "model": "minimax-m3",
+    "timeout_sec": 600
+  },
+  "loop_control": {
+    "budget": {
+      "tokens": 5000000,
+      "wall_clock_min": 90
+    },
+    "human_checkpoints": [],
+    "max_iterations": 8,
+    "no_progress": {
+      "action": "stop",
+      "max_stalled_iterations": 2,
+      "signals": [
+        "same blocking issue repeats",
+        "delivery artifact has no material change",
+        "verifier output is unchanged"
+      ]
+    },
+    "stop_conditions": [
+      "all deliveries pass their gate clean",
+      "max_iterations reached",
+      "same blocker repeats for 2 iterations",
+      "wall-clock 90 minutes exceeded"
+    ]
+  },
+  "meta": {
+    "author": "minimax-m3 (Cherry Studio)",
+    "created": "2026-08-17",
+    "description": "Build a public Android video player app with Media3/ExoPlayer + Compose, push to GitHub with auto-release via Actions, verified by frame/seek perf benchmarks and strict code-review gates.\n",
+    "name": "cherry-pro-minimax-player"
+  },
+  "observability": {
+    "checkpoint_granularity": "gate",
+    "run_log": "run-log.md",
+    "state_file": "state.json"
+  },
+  "privacy": {
+    "egress": [
+      {
+        "consent": "not_required",
+        "notes": "Judge-1 is an in-session sub-agent \u2014 context never leaves the user's machine. Redaction is a defense-in-depth habit.\n",
+        "redact": [
+          ".env",
+          ".env.*",
+          "secrets/**",
+          "**/*.key",
+          "**/*.keystore",
+          "**/*.jks"
+        ],
+        "sends": [
+          "plan",
+          "deliveries"
+        ],
+        "to": "judge-1"
+      }
+    ]
+  },
+  "source": "C:\\ai\\projects\\cherry-pro-minimax-player\\looper-output\\loop.yaml",
+  "version": 1,
+  "workspace": {
+    "dir": "./loop-workspace",
+    "layout": [
+      "plan.md",
+      "delivery-{n}.md",
+      "review-{n}.md",
+      "state.json",
+      "run-log.md",
+      "context.md"
+    ]
+  }
+}
