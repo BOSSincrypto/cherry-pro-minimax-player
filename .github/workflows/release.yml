@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write   # for softprops/action-gh-release
+  contents: write   # for gh release create + git push
   actions: read
 
 jobs:
@@ -49,14 +49,19 @@ jobs:
           path: app/build/outputs/apk/release/app-release.apk
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          # softprops/action-gh-release requires an explicit tag when the
-          # workflow trigger isn't tag-based (we trigger on push to main).
-          # Using the SHA guarantees a unique release per build.
-          tag_name: cherry-player-${{ github.sha }}
-          name: cherry-pro-minimax-player ${{ github.sha }}
-          generate_release_notes: true
-          files: app/build/outputs/apk/release/app-release.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # Use the canonical `gh` CLI instead of softprops/action-gh-release@v2
+        # — softprops ran with exit 0 but did not actually create the release
+        # on the first attempt (silent no-op on branch triggers). The CLI is
+        # pre-installed on ubuntu-latest runners and gives clear errors.
+        run: |
+          set -euo pipefail
+          TAG="cherry-player-${GITHUB_SHA::7}"
+          gh release create "$TAG" \
+            app/build/outputs/apk/release/app-release.apk \
+            --title "Cherry Player ${GITHUB_SHA::7}" \
+            --notes "Built from ${GITHUB_SHA::7} on ${GITHUB_REF_NAME}.
+          Run: [Actions run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}).
+          APK size: $(du -h app/build/outputs/apk/release/app-release.apk | cut -f1)" \
+            --target "${GITHUB_SHA}"
