@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -21,12 +22,15 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,6 +42,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
@@ -92,6 +97,7 @@ fun PlayerScreen(
     var isFullscreen by remember { mutableStateOf(false) }
 
     val isPlaying by remember(player) { derivedStateOf { player.isPlaying } }
+    val error by viewModel.error.collectAsState()
 
     // Refresh isPlaying when player state changes (driven by ExoPlayer events).
     DisposableEffect(player) {
@@ -138,7 +144,18 @@ fun PlayerScreen(
     val filePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
     ) { uri ->
-        if (uri != null) viewModel.prepareUri(uri)
+        if (uri != null) {
+            // Mirror the MainActivity picker: persist read access so the
+            // URI survives rotation / process death. Without this the
+            // URI is only readable until the Activity is destroyed.
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                )
+            }
+            viewModel.prepareUri(uri)
+        }
     }
 
     Scaffold(
@@ -255,6 +272,16 @@ fun PlayerScreen(
                         .padding(bottom = 32.dp),
                 )
             }
+
+            if (error != null) {
+                ErrorBanner(
+                    message = error!!,
+                    onDismiss = { initialUri?.let(viewModel::prepareUri) },
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = if (isFullscreen) 16.dp else 72.dp, start = 16.dp, end = 16.dp),
+                )
+            }
         }
     }
 
@@ -266,5 +293,40 @@ fun PlayerScreen(
                 viewModel.prepareUri(Uri.parse(url))
             },
         )
+    }
+}
+
+/**
+ * Inline error banner shown when ExoPlayer fails to prepare the
+ * current URI. Tapping "Retry" re-prepares the same URI; tapping
+ * "Dismiss" hides the banner until the next error.
+ */
+@Composable
+private fun ErrorBanner(
+    message: String,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        color = Color(0xCC1B0A0E),
+        contentColor = Color.White,
+        shape = MaterialTheme.shapes.large,
+        tonalElevation = 6.dp,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.error_load_failed, message),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = onDismiss) {
+                Text(text = "Retry", color = MaterialTheme.colorScheme.primary)
+            }
+        }
     }
 }

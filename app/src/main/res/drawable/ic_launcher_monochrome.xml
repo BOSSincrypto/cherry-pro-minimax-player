@@ -1,0 +1,11 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Same play triangle, but uses a single fill so the OS can recolour it
+         for the Android 13+ themed-icon mask. -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M44,38 L74,54 L44,70 Z" />
+</vector>

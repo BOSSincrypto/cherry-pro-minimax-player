@@ -116,7 +116,20 @@ private fun AppNavigation(activity: MainActivity, viewModel: PlayerViewModel) {
     val filePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
     ) { uri ->
-        if (uri != null) route = NavRoute.Player(uri)
+        if (uri != null) {
+            // Persist read access across process death / activity recreation.
+            // Without this, the content:// URI we receive is only readable
+            // for the lifetime of this Activity; rotating the device or
+            // returning later would fail with SecurityException when
+            // ExoPlayer tries to open the file.
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                )
+            }
+            route = NavRoute.Player(uri)
+        }
     }
 
     when (val r = route) {
